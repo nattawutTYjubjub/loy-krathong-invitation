@@ -89,7 +89,9 @@ button,input{font:inherit}button{cursor:pointer}.stars,.stars:before,.stars:afte
   <footer class="footer">ทำด้วยความตั้งใจ • แจ้มแจ้ม ถึง แจ้มแจ้มตัวจิ๋ว</footer>
 </main>
 <script>
-const $=id=>document.getElementById(id);
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8GqNd_Qkwg_FLgzGSa9311CnV8nyzxYNvp5Ukm-KwiKiNvlORw-uh5fX00tcCGsjt0g/exec";
+
+let isSending = false;
 const sections=["opening","quiz","invitation","success","declined","formSection"];
 function show(id){sections.forEach(x=>$(x).classList.toggle("hidden",x!==id));window.scrollTo({top:0,behavior:"smooth"});}
 const questions=[
@@ -97,7 +99,37 @@ const questions=[
  {q:"สำหรับคืนลอยกระทง สิ่งไหนสำคัญที่สุด?",a:["บรรยากาศสวย ๆ","รอยยิ้มและเสียงหัวเราะ","คนที่ไปด้วยกัน"],h:"ไม่มีคำตอบผิดนะ"},
  {q:"ถ้ามีคนตั้งใจชวนไปลอยกระทงด้วยกัน...",a:["น่าสนใจนะ 💗","ขอคิดดูก่อนน้า","อยากรู้ว่าจะมีอะไรเซอร์ไพรส์"],h:"อีกนิดเดียวก็ถึงคำเชิญแล้ว"}
 ];
-let step=0,answers=[];
+let step=0,answers=[];async function sendToGoogleSheets(decision) {
+  if (isSending) return;
+  isSending = true;
+
+  const data = {
+    inviter: "แจ้มแจ้ม",
+    invitee: "แจ้มแจ้มตัวจิ๋ว",
+    answer1: answers[0] || "",
+    answer2: answers[1] || "",
+    answer3: answers[2] || "",
+    decision: decision
+  };
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(data)
+    });
+
+    return true;
+  } catch (error) {
+    alert("ส่งข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต");
+    return false;
+  } finally {
+    isSending = false;
+  }
+}
 function renderQ(){
  const q=questions[step];$("qnum").textContent=`คำถามที่ ${step+1} จาก 3`;$("bar").style.width=((step)/3*100)+"%";$("question").textContent=q.q;$("hint").textContent=q.h;$("answers").innerHTML="";
  q.a.forEach((a,i)=>{const b=document.createElement("button");b.className="answer";b.textContent=a;b.onclick=()=>{answers[step]=a;step++;if(step<3)renderQ();else{ $("bar").style.width="100%";show("invitation");}};$("answers").appendChild(b);});
@@ -122,9 +154,29 @@ $("noBtn").addEventListener("click",()=>{
  btn.style.left=(Math.random()*maxX)+"px";
  btn.style.top=(Math.random()*maxY)+"px";
  $("plea").textContent=["แง้ ขออ้อนอีกนิดได้ไหม 🥺","ไปด้วยกันสักแป๊บได้ไหมน้า 💗","ถ้าไม่สะดวกจริง ๆ บอกได้เลยนะ"][Math.min(noAttempts-1,2)];
- if(noAttempts>=3){$("plea").innerHTML='ถ้าไม่สะดวกจริง ๆ <button class="btn secondary" id="declineConfirm" type="button">ยืนยันว่าไม่ไป</button>'; $("declineConfirm").onclick=()=>show("declined");}
+ if(noAttempts>=3){$("plea").innerHTML='ถ้าไม่สะดวกจริง ๆ <button class="btn secondary" id="declineConfirm" type="button">ยืนยันว่าไม่ไป</button>'; $("declineConfirm").onclick = async () => {
+  const btn = $("declineConfirm");
+  btn.disabled = true;
+  btn.textContent = "กำลังบันทึก...";
+
+  await sendToGoogleSheets("ปฏิเสธ");
+
+  btn.disabled = false;
+  show("declined");
+}; }
 });
-$("yesBtn").onclick=()=>{show("success");hearts();};
+$("yesBtn").onclick = async () => {
+  const btn = $("yesBtn");
+  btn.disabled = true;
+  btn.textContent = "กำลังบันทึก...";
+
+  await sendToGoogleSheets("ตอบรับ");
+
+  btn.disabled = false;
+  btn.textContent = "ไปด้วยกัน 💖";
+  show("success");
+  hearts();
+};
 $("backBtn").onclick=()=>show("invitation");
 function hearts(){for(let i=0;i<22;i++){const h=document.createElement("div");h.className="heart";h.textContent=["💗","💕","✨","🪷"][i%4];h.style.left=Math.random()*100+"vw";h.style.animationDelay=(Math.random()*1.8)+"s";h.style.fontSize=(16+Math.random()*18)+"px";document.body.appendChild(h);setTimeout(()=>h.remove(),5500);}}
 $("saveForm").onclick=()=>{const u=$("formUrl").value.trim();if(!u){$("formStatus").textContent="กรุณาวางลิงก์ Google Forms ก่อน";return;}try{const parsed=new URL(u);if(!["https:","http:"].includes(parsed.protocol))throw 0;localStorage.setItem("loykrathongFormUrl",u);$("formStatus").textContent="บันทึกลิงก์ไว้ในเบราว์เซอร์นี้แล้ว แต่ยังต้องตั้งค่าฟอร์มและการส่งคำตอบก่อนใช้งานจริง";}catch(e){$("formStatus").textContent="ลิงก์ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง";}};
